@@ -5,6 +5,8 @@ for Microchip LoRaMOTE USA Version
 Copyright (c) 2016 Jason Biegel, Chris Merck
 All Rights Reserved
 
+Modifications OTAA and ABP by Andres Sabas @ 16/Nov/2016
+
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
@@ -21,7 +23,7 @@ import sys
 BAUD_RATE = 57600
 
 class LoRaSerial(object):
-    def __init__(self,_serial_port,_dev_addr):
+    def __init__(self,_serial_port):
         '''
            configures serial connection
        '''
@@ -53,12 +55,21 @@ class LoRaSerial(object):
         self.write_command('mac set ar off')
         self.write_command('mac set sync 34')
 
-        # configure sub-band 1
+#        FSB 1 (aka block A) =  0,  1,  2,  3,  4,  5,  6,  7 (125 kHz channels) plus 64 (500 kHz channel)
+#        FSB 2 (aka block B) =  8,  9, 10, 11, 12, 13, 14, 15 plus 65
+#        FSB 3 (aka block C) = 16, 17, 18, 19, 20, 21, 22, 23 plus 66
+#        ....
+#        FSB 7 (aka block G) = 48, 49, 50, 51, 52, 53, 54, 55 plus 70
+#        FSB 8 (aka block H) = 56, 57, 58, 59, 60, 61, 62, 63 plus 71
+        # configure sub-band 7
         for ch in range(0,72):
           self.write_command('mac set ch status %d %s'%(ch,
             'on' if ch in range(49,51+1) else 'off'))
 
+        # configure plus 70
         self.write_command('mac set ch status 70 on')
+
+        #save configuration
         self.write_command('mac save')
 
         # join the network
@@ -97,8 +108,9 @@ class LoRaSerial(object):
            sends a message to backend via gateway
        '''
         print "Sending message: ", data
-        # send packet (returns 'ok' immediately) port 50
-        self.write_command('mac tx uncnf 50 %s'%data)
+        print "in channel: ", channel
+        # send packet (returns 'ok' immediately)
+        self.write_command('mac tx uncnf %s %s'%(channel, data))
         # wait for success message
         response = self.read()
         if response == 'mac_tx_ok':
@@ -115,16 +127,16 @@ class LoRaSerial(object):
 
 if __name__ == "__main__":
   if len(sys.argv) < 4:
-    print "Usage: python lora_mote_send.py <port> <dev_addr> <data_hex>"
+    print "Usage: python lora_mote_send_otaa.py <port> <data_hex> <channel>"
     print
-    print "Example: python lora_mote_send.py /dev/ttyACM0 AABBCCDD DEADBEEF"
+    print "Example: python lora_mote_send_otaa.py /dev/ttyACM0 DEADBEEF 50"
     print "  Sends a LoRaWAN packet with four-byte payload {0xDE, 0xAD, 0xBE, 0xEF},"
-    print "   using device address 0xAABBCCDD. Please use your own address space."
+    print "   using channel 50."
     print
     exit(0)
 
   port = sys.argv[1]
-  dev_addr = sys.argv[2]
-  data_hex = sys.argv[3]
-  loramote = LoRaSerial(port,dev_addr)
+  data_hex = sys.argv[2]
+  channel = sys.argv[3]
+  loramote = LoRaSerial(port)
   loramote.send_message(data_hex)
