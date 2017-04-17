@@ -3,7 +3,9 @@ Python Code for Connecting a Node to TheThingsNetwork
 for Microchip LoRaMOTE USA Version
 
 Copyright (c) 2016 Jason Biegel, Chris Merck
-All Rights Reserved 
+All Rights Reserved
+
+Modifications OTAA and ABP by Andres Sabas @ 16/Nov/2016
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
@@ -42,23 +44,30 @@ class LoRaSerial(object):
         # timeout for write
         self._ser.writeTimeout = 0
 
-        #print "Resetting LoRa Tranceiver..."
+        print "Resetting LoRa Tranceiver..."
         self.write_command('sys reset',False)
-        #print "Configuring Tranceiver..."
+        #self.write_command('sys factoryRESET')
+        print "Configuring Tranceiver..."
         self.write_command('mac set devaddr %s'%_dev_addr)
-        self.write_command('mac set appskey 2B7E151628AED2A6ABF7158809CF4F3C')
-        self.write_command('mac set nwkskey 2B7E151628AED2A6ABF7158809CF4F3C')
-        self.write_command('mac set adr off')
+        self.write_command('mac set appskey B4A8A5FDE700FFC1B049CFE0AF582C7E')
+        self.write_command('mac set nwkskey 2A3D628570CFDF0D880033157F7EA29B')
+        self.write_command('mac set adr on')
+        self.write_command('mac set ar off')
         self.write_command('mac set sync 34')
-        self.write_command('mac set rx2 8 923300000')
+        self.write_command('mac set dr 3')
+        self.write_command('mac set pwridx 5')
+        #self.write_command('mac set cr 4/5')
 
         # configure sub-band 7
         for ch in range(0,72):
           self.write_command('mac set ch status %d %s'%(ch,
             'on' if ch in range(49,51+1) else 'off'))
 
+        self.write_command('mac set ch status 70 on')
+        self.write_command('mac save')
+
         # join the network
-        #print "Attempting to Join Network..."
+        print "Attempting to Join Network..."
         self.write_command('mac join abp')
         response = self.read()
         if response == 'accepted':
@@ -78,7 +87,7 @@ class LoRaSerial(object):
         '''
         self._ser.write(str + '\r\n')
         return self.read()
-    
+
     def write_command(self, config_str, check_resp=False):
         '''
             writes out a command
@@ -87,20 +96,20 @@ class LoRaSerial(object):
         response = self.write(config_str)
         if check_resp and response != 'ok':
           print "ERROR: Unexpected response: '%s'"%response
-        
+
     def send_message(self, data):
         '''
             sends a message to backend via gateway
         '''
         print "Sending message: ", data
-        # send packet (returns 'ok' immediately)
-        self.write_command('mac tx uncnf 1 %s'%data)
+        # send packet (returns 'ok' immediately) port 50
+        self.write_command('mac tx uncnf 50 %s'%data)
         # wait for success message
         response = self.read()
         if response == 'mac_tx_ok':
           print "Message sent successfully!"
         else:
-          print "ERROR: mac tx command returned unexpected response: ", response 
+          print "ERROR: mac tx command returned unexpected response: ", response
 
     def receive_message(self):
         '''
@@ -124,4 +133,3 @@ if __name__ == "__main__":
   data_hex = sys.argv[3]
   loramote = LoRaSerial(port,dev_addr)
   loramote.send_message(data_hex)
-
